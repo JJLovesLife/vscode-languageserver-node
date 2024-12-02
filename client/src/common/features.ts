@@ -338,7 +338,7 @@ export abstract class TextDocumentEventFeature<P extends { textDocument: TextDoc
 	protected readonly _selectorFilter?: (selectors: IterableIterator<VDocumentSelector>, data: E) => boolean;
 
 	private _listener: Disposable | undefined;
-	protected readonly _selectors: Map<string, VDocumentSelector>;
+	protected readonly _selectors: Map<string, VDocumentSelector>; // registration id -> documentSelector
 	private _onNotificationSent: EventEmitter<NotificationSendEvent<P>>;
 
 	public static textDocumentFilter(selectors: IterableIterator<VDocumentSelector>, textDocument: TextDocument): boolean {
@@ -402,7 +402,7 @@ export abstract class TextDocumentEventFeature<P extends { textDocument: TextDoc
 	}
 
 	protected matches(data: E): boolean {
-		if (this._client.hasDedicatedTextSynchronizationFeature(this._textDocument(data))) {
+		if (this._client.hasDedicatedTextSynchronizationFeature(this._textDocument(data))) { // 排除掉 Notebook 会负责的 documents
 			return false;
 		}
 		return !this._selectorFilter || this._selectorFilter(this._selectors.values(), data);

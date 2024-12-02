@@ -131,14 +131,14 @@ export type SynchronizeOptions = {
 	 *
 	 * @deprecated Use the new pull model (`workspace/configuration` request)
 	 */
-	configurationSection?: string | string[];
+	configurationSection?: string | string[]; // 初始化的时候 dynamicRegister `workspace/didChangeConfiguration`
 
 	/**
 	 * Asks the client to send file change events to the server. Watchers
 	 * operate on workspace folders. The LSP client doesn't support watching
 	 * files outside a workspace folder.
 	 */
-	fileEvents?: VFileSystemWatcher | VFileSystemWatcher[];
+	fileEvents?: VFileSystemWatcher | VFileSystemWatcher[]; // 相当于初始化的时候dynamicRegister了一个 `workspace/didChangeWatchedFiles`
 };
 
 

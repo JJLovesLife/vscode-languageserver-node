@@ -48,7 +48,7 @@ type $ConfigurationOptions = {
 
 export class DidOpenTextDocumentFeature extends TextDocumentEventFeature<DidOpenTextDocumentParams, TextDocument, TextDocumentSynchronizationMiddleware> implements DidOpenTextDocumentFeatureShape {
 
-	private readonly _syncedDocuments: Map<string, TextDocument>;
+	private readonly _syncedDocuments: Map<string, TextDocument>; // shared with DidCloseTextDocumentFeature
 	private readonly _pendingOpenNotifications: Map<string, TextDocument>;
 	private readonly _delayOpen: boolean;
 	private _pendingOpenListeners: Disposable[] | undefined;
@@ -90,7 +90,7 @@ export class DidOpenTextDocumentFeature extends TextDocumentEventFeature<DidOpen
 		ensure(ensure(capabilities, 'textDocument')!, 'synchronization')!.dynamicRegistration = true;
 	}
 
-	public initialize(capabilities: ServerCapabilities, documentSelector: DocumentSelector): void {
+	public initialize(capabilities: ServerCapabilities, documentSelector: DocumentSelector /* 这个是 _clientOptions.documentSelector */): void {
 		const textDocumentSyncOptions = (capabilities as ResolvedTextDocumentSyncCapabilities).resolvedTextDocumentSync;
 		if (documentSelector && textDocumentSyncOptions && textDocumentSyncOptions.openClose) {
 			this.register({ id: UUID.generateUuid(), registerOptions: { documentSelector: documentSelector } });
@@ -114,7 +114,7 @@ export class DidOpenTextDocumentFeature extends TextDocumentEventFeature<DidOpen
 			}
 			if (Languages.match(documentSelector, textDocument) > 0 && !this._client.hasDedicatedTextSynchronizationFeature(textDocument)) {
 				const tabsModel = this._client.tabsModel;
-				if (tabsModel.isVisible(textDocument)) {
+				if (tabsModel.isVisible(textDocument)) { // 这里没有 check _delayOpen 欸，是故意的吗?
 					const middleware = this._client.middleware;
 					const didOpen = (textDocument: TextDocument): Promise<void> => {
 						return this._client.sendNotification(this._type, this._createParams(textDocument));
@@ -272,8 +272,8 @@ export class DidChangeTextDocumentFeature extends DynamicDocumentFeature<TextDoc
 	private readonly _changeData: Map<string, DidChangeTextDocumentData>;
 	private readonly _onNotificationSent: EventEmitter<NotificationSendEvent<DidChangeTextDocumentParams>>;
 	private readonly _onPendingChangeAdded: EventEmitter<void>;
-	private readonly _pendingTextDocumentChanges: Map<string, TextDocument>;
-	private _syncKind: TextDocumentSyncKind;
+	private readonly _pendingTextDocumentChanges: Map<string, TextDocument>; // shared with DidCloseTextDocumentFeature 好像是对于 SyncKind.Full 不会直接发出 notification 而是有一点的 debounce 机制？
+	private _syncKind: TextDocumentSyncKind; // max of all registered
 
 	constructor(client: FeatureClient<TextDocumentSynchronizationMiddleware>, pendingTextDocumentChanges: Map<string, TextDocument>) {
 		super(client);

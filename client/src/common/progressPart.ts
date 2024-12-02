@@ -97,7 +97,7 @@ export class ProgressPart {
 		}
 	}
 
-	public done(): void {
+	public done(): void { // 即允许 done 的 notification 也允许 client 主动去 set done
 		this.cleanup();
 		if (this._resolve !== undefined) {
 			this._resolve();

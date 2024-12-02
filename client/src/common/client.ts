@@ -295,7 +295,7 @@ type _WorkspaceMiddleware = {
 export type WorkspaceMiddleware = _WorkspaceMiddleware & ConfigurationMiddleware & DidChangeConfigurationMiddleware & WorkspaceFolderMiddleware & FileOperationsMiddleware;
 
 interface _WindowMiddleware {
-	showDocument?: ShowDocumentRequest.MiddlewareSignature;
+	showDocument?: ShowDocumentRequest.MiddlewareSignature; // [window/showDocument]
 }
 export type WindowMiddleware = _WindowMiddleware;
 
@@ -346,31 +346,31 @@ LinkedEditingRangeMiddleware & TypeHierarchyMiddleware & InlineValueMiddleware &
 InlineCompletionMiddleware & TextDocumentContentMiddleware & GeneralMiddleware;
 
 export type LanguageClientOptions = {
-	documentSelector?: DocumentSelector | string[];
+	documentSelector?: DocumentSelector | string[]; // case1: default documentSelector for client/registryCapability
 	diagnosticCollectionName?: string;
 	outputChannel?: OutputChannel;
 	outputChannelName?: string;
-	traceOutputChannel?: OutputChannel;
+	traceOutputChannel?: OutputChannel; // undefined => fallback to server.verbosity, relate to config[_id.trace.server]
 	revealOutputChannelOn?: RevealOutputChannelOn;
 	/**
 	 * The encoding use to read stdout and stderr. Defaults
 	 * to 'utf8' if omitted.
 	 */
 	stdioEncoding?: string;
-	initializationOptions?: any | (() => any);
+	initializationOptions?: any | (() => any); // 额外加到 initialize request params 上去
 	initializationFailedHandler?: InitializationFailedHandler;
-	progressOnInitialization?: boolean;
-	errorHandler?: ErrorHandler;
+	progressOnInitialization?: boolean; // 生成 initialize request params.workDoneToken
+	errorHandler?: ErrorHandler; // 当 jsonrpc reader/writer error 时，用于override默认handling
 	middleware?: Middleware;
 	uriConverters?: {
 		code2Protocol: c2p.URIConverter;
 		protocol2Code: p2c.URIConverter;
 	};
-	workspaceFolder?: VWorkspaceFolder;
+	workspaceFolder?: VWorkspaceFolder; // 可以让client lock到一个特定的folder上，从而导致了workspace feature的disable
 	connectionOptions?: {
-		cancellationStrategy?: CancellationStrategy;
-		messageStrategy?: MessageStrategy;
-		maxRestartCount?: number;
+		cancellationStrategy?: CancellationStrategy; // 用于修改创建 cancellation token 的逻辑
+		messageStrategy?: MessageStrategy; // JSON-RPC message开始执行之前的hook point
+		maxRestartCount?: number; // 默认4，允许几次restart
 	};
 	markdown?: {
 		isTrusted?: boolean | { readonly enabledCommands: readonly string[] };
@@ -378,7 +378,7 @@ export type LanguageClientOptions = {
 		supportThemeIcons?: boolean;
 	};
 	textSynchronization?: {
-		/**
+		/** textDocument/didOpen
 		 * Delays sending the open notification until one of the following
 		 * conditions becomes `true`:
 		 * - document is visible in the editor.
@@ -417,8 +417,8 @@ type ResolvedClientOptions = {
 	};
 	markdown: {
 		isTrusted: boolean | { readonly enabledCommands: readonly string[] };
-		supportHtml: boolean;
-		supportThemeIcons: boolean;
+		supportHtml: boolean; // 增加 Capabilities > general.markdown.allowedTags
+		supportThemeIcons: boolean; // 似乎是允许一些vscode特殊markdown语法
 	};
 	textSynchronization: {
 		delayOpenNotifications: boolean;
@@ -641,14 +641,14 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 	private readonly _pendingProgressHandlers: Map<string | number,  { type: ProgressType<any>; handler: NotificationHandler<any> }>;
 	private readonly _progressDisposables: Map<string | number,  Disposable>;
 
-	private _initializeResult: InitializeResult | undefined;
-	private _outputChannel: OutputChannel | undefined;
+	private _initializeResult: InitializeResult | undefined; // initialize request server response
+	private _outputChannel: OutputChannel | undefined; // clientOptions.outputChannel ?? outputChannelName ?? _id, usage1: client side exception; usage2: server process stderr stdout(when using other transport)
 	private _disposeOutputChannel: boolean;
-	private _traceOutputChannel: OutputChannel | undefined;
-	private _capabilities!: ServerCapabilities & ResolvedTextDocumentSyncCapabilities;
+	private _traceOutputChannel: OutputChannel | undefined; // clientOptions.traceOutputChannel
+	private _capabilities!: ServerCapabilities & ResolvedTextDocumentSyncCapabilities; // initialize response .capabilities
 
 	private _diagnostics: DiagnosticCollection | undefined;
-	private _syncedDocuments: Map<string, TextDocument>;
+	private _syncedDocuments: Map<string, TextDocument>; // 1. textDocument/didOpen notification sent, 会 set [uri, TextDocument] 2. textDocument/didClose notification sent, delete [uri]
 
 	private _didChangeTextDocumentFeature: DidChangeTextDocumentFeature | undefined;
 	private readonly _inFlightOpenNotifications: Set<string>;
@@ -671,7 +671,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 	private _tabsModel: TabsModel | undefined;
 
 	public constructor(id: string, name: string, clientOptions: LanguageClientOptions) {
-		this._id = id;
+		this._id = id; // usage 1: to get trace.server from config[_id]; usage2: default diagnostics colleciton name
 		this._name = name;
 
 		clientOptions = clientOptions || {};
@@ -1048,7 +1048,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 					}
 				}
 			};
-		} else {
+		} else { // 会不会出现在 intialize 到 initialized 这段时间里注册？这样好像会提前导致这个handler被注册，不过这个可以让caller来保证
 			this._pendingNotificationHandlers.set(method, handler);
 			disposable = {
 				dispose: () => {
@@ -1137,7 +1137,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 		const connection = this.activeConnection();
 		if (connection !== undefined) {
 			await connection.trace(this._trace, this._tracer, {
-				sendNotification: false,
+				sendNotification: false, // 这里为什么不用 sendNotification?
 				traceFormat: this._traceFormat
 			});
 		}
@@ -1277,7 +1277,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 
 		this.$state = ClientState.Starting;
 		try {
-			const connection = await this.createConnection();
+			const connection = await this.createConnection(); // 下面这些是允许server在initialize之前发送过来的message
 			connection.onNotification(LogMessageNotification.type, (message) => {
 				switch (message.type) {
 					case MessageType.Error:
@@ -1399,7 +1399,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 				version: VSCodeVersion
 			},
 			locale: this.getLocale(),
-			rootPath: rootPath ? rootPath : null,
+			rootPath: rootPath ? rootPath : null, // first workspace fsPath
 			rootUri: rootPath ? this._c2p.asUri(Uri.file(rootPath)) : null,
 			capabilities: this.computeClientCapabilities(),
 			initializationOptions: Is.func(initOption) ? initOption() : initOption,
@@ -1455,7 +1455,13 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 				textDocumentSyncOptions = result.capabilities.textDocumentSync as TextDocumentSyncOptions;
 			}
 			this._capabilities = Object.assign({}, result.capabilities, { resolvedTextDocumentSync: textDocumentSyncOptions });
-
+/*
+这里initialize response之后有一段时间会method not found，specification有点不清楚，一方面说了：
+the server is not allowed to send any requests or notifications to the client until it has responded with an **InitializeResult**, with the exception that ...
+但是 initialized notification 那里又说了：
+The initialized notification is sent from the client to the server after the client received the result of the initialize request but before the client is sending **any other request or notification** to the server.
+所以不清楚在 receive intialize response <-> send initialzied notification 这段时间是否应该接受 all messages
+*/
 			connection.onNotification(PublishDiagnosticsNotification.type, params => this.handleDiagnostics(params));
 			connection.onRequest(RegistrationRequest.type, params => this.handleRegistrationRequest(params));
 			// See https://github.com/Microsoft/vscode-languageserver-node/issues/199
@@ -1634,7 +1640,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 		}
 	}
 
-	private notifyFileEvent(event: FileEvent): void {
+	private notifyFileEvent(event: FileEvent): void { // workspace/didChangeWatchedFiles 中注册的 vscode.workspace.createFileSystemWatcher 的统一的 callback
 		const client = this;
 		async function didChangeWatchedFile(this: void, event: FileEvent): Promise<void> {
 			client._fileEvents.push(event);
@@ -1705,7 +1711,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 	}
 
 	private triggerDiagnosticQueue(): void {
-		RAL().timer.setImmediate(() => { this.workDiagnosticQueue(); });
+		RAL().timer.setImmediate(() => { this.workDiagnosticQueue(); }); // 这个很慢吗？不过确实有可能出现存在很多 diag 的情况，但是 setImmediate 是不是又导致这个不太有效？
 	}
 
 	private workDiagnosticQueue(): void {
@@ -1820,7 +1826,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 	}
 
 	private async handleConnectionError(error: Error, message: Message | undefined, count: number | undefined): Promise<void> {
-		const handlerResult: ErrorHandlerResult = await this._clientOptions.errorHandler!.error(error, message, count);
+		const handlerResult: ErrorHandlerResult = await this._clientOptions.errorHandler!.error(error, message, count); // count 在 WriteableStreamMessageWriter 中统计
 		if (handlerResult.action === ErrorAction.Shutdown) {
 			this.error(handlerResult.message ?? `Client ${this._name}: connection to server is erroring.\n${error.message}\nShutting down server.`, undefined, handlerResult.handled === true ? false : 'force');
 			this.stop().catch((error) => {
@@ -1878,8 +1884,8 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 		(this._dynamicFeatures.get(DidChangeWatchedFilesNotification.type.method)! as FileSystemWatcherFeature).registerRaw(UUID.generateUuid(), watchers);
 	}
 
-	private readonly _features: (StaticFeature | DynamicFeature<any>)[] = [];
-	private readonly _dynamicFeatures: Map<string, DynamicFeature<any>> = new Map<string, DynamicFeature<any>>();
+	private readonly _features: (StaticFeature | DynamicFeature<any>)[] = []; // 1: registerBuiltinFeatures // 2. [TBC] user provided (这里需要确认的是允许注册的时机，似乎在initialzie之后去注册就不会生效了)
+	private readonly _dynamicFeatures: Map<string, DynamicFeature<any>> = new Map<string, DynamicFeature<any>>(); // key is method name, value is the feature obj instance
 
 	public registerFeatures(features: (StaticFeature | DynamicFeature<any>)[]): void {
 		for (const feature of features) {
@@ -1888,7 +1894,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 	}
 
 	public registerFeature(feature: StaticFeature | DynamicFeature<any>): void {
-		this._features.push(feature);
+		this._features.push(feature); // 似乎必须在 initialize 之前push
 		if (DynamicFeature.is(feature)) {
 			const registrationType = feature.registrationType;
 			this._dynamicFeatures.set(registrationType.method, feature);
@@ -2023,7 +2029,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 		}
 	}
 
-	private computeClientCapabilities(): ClientCapabilities {
+	private computeClientCapabilities(): ClientCapabilities { // 除了最后两个 supportHtml之前的 都是const
 		const result: ClientCapabilities = {};
 		ensure(result, 'workspace')!.applyEdit = true;
 
@@ -2084,7 +2090,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 			}
 		}
 		for (const feature of this._features) {
-			feature.initialize(this._capabilities, documentSelector);
+			feature.initialize(this._capabilities, documentSelector); // 不好说这里和 registryCapability 和不会有并发问题，因为前面是 await 了 sendNotification 的，但这只是 await 了 messageWriter
 		}
 	}
 
@@ -2125,7 +2131,7 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 			try {
 				feature.register(data);
 			} catch (err) {
-				return Promise.reject(err);
+				return Promise.reject(err); // 这会导致出现注册了一般的情况
 			}
 		}
 	}
@@ -2170,13 +2176,13 @@ export abstract class BaseLanguageClient implements FeatureClient<Middleware, La
 		const workspaceEdit: WorkspaceEdit = params.edit;
 		// Make sure we convert workspace edits one after the other. Otherwise
 		// we might execute a workspace edit received first after we received another
-		// one since the conversion might race.
+		// one since the conversion might race. // emmm 就算 convert 保证了，后面的就不会乱序了嘛？依赖于没有async?以及semephare的实现中microtask和setImmediate两者的顺序？
 		const converted = await this.workspaceEditLock.lock(() => {
 			return this._p2c.asWorkspaceEdit(workspaceEdit);
 		});
 
 		// This is some sort of workaround since the version check should be done by VS Code in the Workspace.applyEdit.
-		// However doing it here adds some safety since the server can lag more behind then an extension.
+		// However doing it here adds some safety since the server can lag more behind then an extension. // 没太理解，vscode应该比extension了解更准确的version信息吧
 		const openTextDocuments: Map<string, TextDocument> = new Map<string, TextDocument>();
 		Workspace.textDocuments.forEach((document) => openTextDocuments.set(document.uri.toString(), document));
 		let versionMismatch = false;
@@ -2408,7 +2414,7 @@ interface ConnectionCloseHandler {
 function createConnection(input: MessageReader, output: MessageWriter, errorHandler: ConnectionErrorHandler, closeHandler: ConnectionCloseHandler, options?: ConnectionOptions): Connection {
 	const logger = new ConsoleLogger();
 	const connection = createProtocolConnection(input, output, logger, options);
-	connection.onError((data) => { errorHandler(data[0], data[1], data[2]); });
+	connection.onError((data) => { errorHandler(data[0], data[1], data[2]); }); // read, write error, 一个error的例子是reader读到了不正确的JSON-RPC header, 比如 server stdout 参杂了其他内容
 	connection.onClose(closeHandler);
 	const result: Connection = {
 

@@ -247,7 +247,7 @@ export class ReadableStreamMessageReader extends AbstractMessageReader {
 				// message and then we would deliver the second message first.
 				this.readSemaphore.lock(async () => {
 					const bytes: Uint8Array = this.options.contentDecoder !== undefined
-						? await this.options.contentDecoder.decode(body)
+						? await this.options.contentDecoder.decode(body) // compaction
 						: body;
 					const message = await this.options.contentTypeDecoder.decode(bytes, this.options);
 					this.callback(message);

@@ -102,7 +102,10 @@ export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
 	onLastListenerRemove?: Function;
 }
-
+/*
+简单的就是保存了一个callback list, fire的时候调用callback
+注册callback是 Emitter.event(callback, this?)
+*/
 export class Emitter<T> {
 
 	private static _noop = function () { };

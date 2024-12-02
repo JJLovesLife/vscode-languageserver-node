@@ -60,7 +60,7 @@ namespace Transport {
 export interface ExecutableOptions {
 	cwd?: string;
 	env?: any;
-	detached?: boolean;
+	detached?: boolean; // whether client will kill server process when shutdown
 	shell?: boolean;
 }
 
@@ -160,7 +160,7 @@ export class LanguageClient extends BaseLanguageClient {
 		this._forceDebug = forceDebug;
 		this._isInDebugMode = forceDebug;
 		try {
-			this.checkVersion();
+			this.checkVersion(); // vscode version requirement
 		} catch (error: any) {
 			if (Is.string(error.message)) {
 				this.outputChannel.appendLine(error.message);

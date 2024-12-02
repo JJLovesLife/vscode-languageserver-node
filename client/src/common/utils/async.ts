@@ -119,7 +119,7 @@ export class Semaphore<T = void> {
 		if (this._waiting.length === 0 || this._active === this._capacity) {
 			return;
 		}
-		RAL().timer.setImmediate(() => this.doRunNext());
+		RAL().timer.setImmediate(() => this.doRunNext()); // 这里的另一个现象（不确实是不是这个design的）是 lock promise 的then会先执行(microtask queu), 然后才会再次执行setImmediate，所以promise可以保证到await之后，下一个async之前？
 	}
 
 	private doRunNext(): void {
@@ -260,7 +260,7 @@ export async function map<P, C>(items: ReadonlyArray<P>, func: (item: P) => C, t
 			break;
 		}
 		index = await new Promise((resolve) => {
-			RAL().timer.setImmediate(() => {
+			RAL().timer.setImmediate(() => { // 这里是 setImmediate 是不是让步效果也一般？
 				resolve(convertBatch(index));
 			});
 		});

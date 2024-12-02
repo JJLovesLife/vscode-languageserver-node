@@ -1136,7 +1136,7 @@ export function createConverter(
 			}
 		};
 		const result = new code.WorkspaceEdit();
-		if (item.documentChanges) {
+		if (item.documentChanges) { // 两者只能有一个
 			const documentChanges = item.documentChanges;
 			await async.forEach(documentChanges, (change) => {
 				if (ls.CreateFile.is(change)) {
@@ -1146,7 +1146,7 @@ export function createConverter(
 				} else if (ls.DeleteFile.is(change)) {
 					result.deleteFile(_uriConverter(change.uri), change.options, asMetadata(change.annotationId));
 				} else if (ls.TextDocumentEdit.is(change)) {
-					const uri = _uriConverter(change.textDocument.uri);
+					const uri = _uriConverter(change.textDocument.uri); // version 不支持，有（部分？）支持，在 doHandleApplyWorkspaceEdit 中
 					const edits: [code.TextEdit | code.SnippetTextEdit, code.WorkspaceEditEntryMetadata | undefined][] = [];
 					for (const edit of change.edits) {
 						if (ls.AnnotatedTextEdit.is(edit)) {

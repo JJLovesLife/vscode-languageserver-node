@@ -614,10 +614,10 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 	let inFlight: number = 0;
 
 	let starRequestHandler: StarRequestHandler | undefined = undefined;
-	const requestHandlers: Map<string, RequestHandlerElement> = new Map();
+	const requestHandlers: Map<string, RequestHandlerElement> = new Map(); // key is method name
 	let starNotificationHandler: StarNotificationHandler | undefined = undefined;
-	const notificationHandlers: Map<string, NotificationHandlerElement> = new Map();
-	const progressHandlers: Map<number | string, NotificationHandler1<any>> = new Map();
+	const notificationHandlers: Map<string, NotificationHandlerElement> = new Map(); // [$/logTrace] key is method name
+	const progressHandlers: Map<number | string, NotificationHandler1<any>> = new Map(); // [$/progress]
 
 	let timer: Disposable | undefined;
 	let messageQueue: MessageQueue = new LinkedMap<string, Message>();
@@ -625,7 +625,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 	let knownCanceledRequests: Set<string | number> = new Set();
 	let requestTokens: Map<string | number, AbstractCancellationTokenSource> = new Map();
 
-	let trace: Trace = Trace.Off;
+	let trace: Trace = Trace.Off; // [$/logTrace]
 	let traceFormat: TraceFormat = TraceFormat.Text;
 	let tracer: Tracer | undefined;
 
@@ -743,7 +743,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 			} finally {
 				if (result instanceof Promise) {
 					result.then(() => {
-						inFlight--;
+						inFlight--; // 这个是不是应该放到 finally? 但这里的exception只有messageWrite.write，其他的会被swallow
 						triggerMessageQueue();
 					}).catch((error) => {
 						logger.error(`Processing message queue failed: ${error.toString()}`);
@@ -777,7 +777,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 				const key = createRequestQueueKey(cancelId);
 				const toCancel = messageQueue.get(key);
 				if (Message.isRequest(toCancel)) {
-					const strategy = options?.connectionStrategy;
+					const strategy = options?.connectionStrategy; // 这个暂时还没暴露给clientOptions
 					const response = (strategy && strategy.cancelUndispatched) ? strategy.cancelUndispatched(toCancel, cancelUndispatched) : cancelUndispatched(toCancel);
 					if (response && (response.error !== undefined || response.result !== undefined)) {
 						messageQueue.delete(key);
@@ -797,7 +797,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 				} else {
 					// Remember the cancel but still queue the message to
 					// clean up state in process message.
-					knownCanceledRequests.add(cancelId);
+					knownCanceledRequests.add(cancelId); // 这是 client 还没有开始处理 server 的 request 就处理了 cancel notification
 				}
 			}
 			addMessageToQueue(messageQueue, message);
@@ -945,7 +945,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 		let notificationHandler: GenericNotificationHandler | undefined;
 		if (message.method === CancelNotification.type.method) {
 			const cancelId = (message.params as CancelParams).id;
-			knownCanceledRequests.delete(cancelId);
+			knownCanceledRequests.delete(cancelId); // 这里还是依赖于 request 要在 cancelRequest 之前，否则request不会被cancel
 			traceReceivedNotification(message);
 			return;
 		} else {
@@ -961,7 +961,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 				if (notificationHandler) {
 					if (message.params === undefined) {
 						if (type !== undefined) {
-							if (type.numberOfParams !== 0 && type.parameterStructures !== ParameterStructures.byName) {
+							if (type.numberOfParams !== 0 && type.parameterStructures !== ParameterStructures.byName) { // byPosition 就可以 != 0 了吗，和 request 那里的逻辑不一致啊
 								logger.error(`Notification ${message.method} defines ${type.numberOfParams} params but received none.`);
 							}
 						}
@@ -1355,7 +1355,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 			throwIfClosedOrDisposed();
 			throwIfNotListening();
 
-			function sendCancellation(connection: MessageConnection, id: CancellationId): void {
+			function sendCancellation(connection: MessageConnection, id: CancellationId): void { // 就算cancel了，也要等server然后cancel response才会去reject Promise
 				const p = cancellationStrategy.sender.sendCancellation(connection, id);
 				if (p === undefined) {
 					logger.log(`Received no promise from cancellation strategy when cancelling id ${id}`);
@@ -1445,7 +1445,7 @@ export function createMessageConnection(messageReader: MessageReader, messageWri
 					cancellationStrategy.sender.cleanup(id);
 					disposable?.dispose();
 				};
-				const responsePromise: ResponsePromise | null = { method: method, timerStart: Date.now(), resolve: resolveWithCleanup, reject: rejectWithCleanup };
+				const responsePromise: ResponsePromise | null = { method: method, timerStart: Date.now(), resolve: resolveWithCleanup, reject: rejectWithCleanup }; // method & tiemrStart for log
 				try {
 					responsePromises.set(id, responsePromise);
 					await messageWriter.write(requestMessage);

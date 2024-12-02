@@ -20,7 +20,7 @@ export namespace Touch {
 
 export type Touch = 0 | 1 | 2;
 
-export class LinkedMap<K, V> implements Map<K, V> {
+export class LinkedMap<K, V> implements Map<K, V> { // 不是 list of map 而是 map & linked list
 
 	readonly [Symbol.toStringTag] = 'LinkedMap';
 

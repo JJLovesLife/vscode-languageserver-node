@@ -311,8 +311,8 @@ class DiagnosticRequestor implements Disposable {
 		this.openRequests = new Map();
 		this.documentStates = new DocumentPullStateTracker();
 		this.workspaceErrorCounter = 0;
-	}
 
+	}
 	public knows(kind: PullState, document: TextDocument | Uri): boolean {
 		const uri = document instanceof Uri ? document : document.uri;
 		return this.documentStates.tracks(kind, document) || this.openRequests.has(uri.toString());
@@ -637,7 +637,7 @@ export type DiagnosticProviderShape = {
 	forget(document: TextDocument): void;
 };
 
-class BackgroundScheduler implements Disposable {
+class BackgroundScheduler implements Disposable { // 似乎是用于在 pull mode 下 active document 更改，但是之前的doc没有得到server result下会background
 
 	private readonly client: FeatureClient<DiagnosticProviderMiddleware, $DiagnosticPullOptions>;
 	private readonly diagnosticRequestor: DiagnosticRequestor;
